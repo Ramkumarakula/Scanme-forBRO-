@@ -4,14 +4,53 @@ Give it a picture of a design. It tells you which folder in your design library 
 
 It is free, fully offline, and runs on Windows. Nothing is uploaded anywhere.
 
-> **Status:** Phase 2, command line only. A small always-on-top window comes in a later phase.
+> **Status:** Phase 3. A small always-on-top window, plus a single `DesignFinder.exe` that needs no Python.
 
-## Quick start
+<img src="docs/window.png" width="360" alt="Design Finder window: a dark-mode query image at the top, matching design folders below with scores and Open folder buttons">
+
+*(The screenshot uses the mock data. The query is a dark-mode drawing, and the top result is the light-colored original.)*
+
+## Install on his laptop (no Python needed)
+
+1. **Get the file.** On the development PC, run `python scripts\build_exe.py`. This creates `dist\DesignFinder.exe` (about 75 MB). Copy it to his laptop by USB stick or Google Drive. WhatsApp and e-mail often block `.exe` files.
+2. **Put it in its own folder,** for example `C:\Tools\DesignFinder\`. Don't use `Program Files`. The app saves its settings and index **next to the exe**, so that folder must be writable. If it isn't, the app falls back to `%LOCALAPPDATA%\DesignFinder`.
+3. **First start:** double-click `DesignFinder.exe`.
+   - Windows may show *"Windows protected your PC"*, because the exe isn't code-signed. Click **More info → Run anyway**. This happens only once.
+   - Some antivirus tools are suspicious of PyInstaller apps in general. If it gets quarantined, allow `DesignFinder.exe` in the antivirus.
+   - Starting takes about 5 seconds, because the single-file exe unpacks itself each time.
+4. **Choose the design folders.** The *Design folders* window opens on the first start. Click **Add folder…** for each top folder (sub-folders are included), then **Save and scan**. The first scan reads every image once. After that, each start re-checks only new or changed files.
+5. **Optional shortcut:** right-click `DesignFinder.exe` → *Show more options* → *Send to* → *Desktop (create shortcut)*. You can also pin it to the taskbar.
+
+**Updating:** replace `DesignFinder.exe`. His `settings.json` and `index.db` stay where they are.
+**Uninstalling:** delete the folder. Nothing else is installed, and no registry entries are made.
+
+## Using the window
+
+- **Snip and paste:** press `Win+Shift+S`, select the design on screen, then click in Design Finder and press **Ctrl+V**. A copied image file also works.
+- **Open image…:** pick any PNG, JPG or WEBP file.
+- **Open with:** right-click an image → *Open with* → *Choose another app* → `DesignFinder.exe`.
+- Each result shows the matching image, its **score** (1.00 = same design), the folder, and the SketchUp files there. **Open folder** opens Explorer with the newest `.skp`/`.skb` selected, ready to drag into SketchUp.
+- **Keep on top** keeps the window above every other app. Untick it to turn that off. The choice is remembered.
+- **Folders…** changes the design folders. **Re-scan** picks up new designs without restarting.
+
+## How to check it works on his laptop
+
+1. Search with an image that **is already** in his folders. Its folder should come first with a score of about 1.00.
+2. Search with a **WhatsApp copy** or a **screenshot** of one of his designs. The right folder should still come first.
+3. Search with a **recolored** version of a design, if he has one. Its folder should come first, with a clearly lower score for the second result.
+4. Search with something he has **never** designed. All scores should be noticeably lower.
+5. Click **Open folder** and check that Explorer opens with the SketchUp file selected.
+
+Please note any wrong results (query image plus the folder that should have matched). Those examples are exactly what's needed to tune the matching and set the "found / new" cutoff.
+
+## Command line (for development)
 
 ```powershell
 py -3.11 -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
+
+python -m designfinder.app [image]          # the window, from source
 
 # 1. Build the index once (later runs only process new/changed images)
 python -m designfinder index "D:\Designs"
@@ -32,7 +71,7 @@ Example output:
 
 Each result shows a **score** (higher = more similar), the **folder**, the image in that folder that matched best, and the master files in that folder (newest first).
 
-The index is stored in `data\index.db`. Use `--db <file>` to put it somewhere else.
+From source, the index is stored in `data\index.db` and the window's settings in `data\settings.json`. Use `--db <file>` to put the CLI index somewhere else. The CLI doesn't share the exe's index.
 
 **Supported image types:** `.png`, `.jpg`, `.jpeg` (WhatsApp photos), `.webp` (WhatsApp stickers).
 
@@ -94,32 +133,39 @@ The same evaluation works on real samples. Put them in `data\` (gitignored) with
 ```powershell
 pytest                                                  # all tests
 pytest tests/test_search.py::test_recolored_design_matches   # one test
+python scriptsuild_exe.py                             # build dist\DesignFinder.exe
 pip-audit --skip-editable                               # known-vulnerability check of dependencies
-bandit -q -r src scripts                                # static security scan
+bandit -q -r src scripts packaging                      # static security scan
 ```
 
 | Path | What it does |
 |---|---|
 | `src/designfinder/fingerprint.py` | Image → fingerprints (steps 1–6 above) |
-| `src/designfinder/index.py` | SQLite index, incremental re-scan, auto-rebuild when the fingerprint format changes |
+| `src/designfinder/index.py` | SQLite index: incremental re-scan, drops removed folders, auto-rebuild when the fingerprint format changes |
 | `src/designfinder/search.py` | In-memory comparison (step 7), grouping by folder |
 | `src/designfinder/scanner.py` | Finds image files and master files |
+| `src/designfinder/app.py` | The always-on-top window (Tkinter) |
+| `src/designfinder/settings.py` | Where settings/index live, and the chosen design folders |
 | `src/designfinder/__main__.py` | Command line |
-| `scripts/` | Mock data generator, evaluation |
+| `packaging/launcher.py`, `scripts/build_exe.py` | Single-file exe (PyInstaller) |
+| `scripts/` | Mock data generator, evaluation, exe build |
 | `tests/` | Unit tests plus an end-to-end test on the mock data |
 
 ## Security
 
-- **Fully offline.** There is no network code, no shell commands, no `eval` and no `pickle`. Fingerprints are stored as raw float arrays.
+- **Fully offline.** There is no network code, no `eval` and no `pickle`. Fingerprints are stored as raw float arrays.
+- The only external program it starts is Windows' own `explorer.exe`. It's called by full path (no PATH lookup) with no shell, and only for files that exist in the index and contain no quote character.
 - All SQL uses parameters, so file names can't inject SQL.
+- `settings.json` is validated on load. A corrupt or tampered file falls back to defaults instead of crashing.
 - Folder scanning doesn't follow symbolic links, so it can't loop or escape the chosen folders.
-- Images are decoded by OpenCV. Keep dependencies up to date and re-run `pip-audit`. Real design files, `.env` files and the index database are gitignored and never committed.
+- Images are decoded by OpenCV and Pillow. Keep dependencies up to date, re-run `pip-audit`, and rebuild the exe. Real design files, `.env` files, the index database and built exes are gitignored and never committed.
+- The exe is **not code-signed**, so Windows SmartScreen warns on first run (see the install steps above).
 - At the time of this phase, `pip-audit` reports no known vulnerabilities and `bandit` reports no issues.
 
 ## Roadmap
 
 1. ~~Phase 1: index PNGs, search, return folder~~
 2. ~~Phase 2: JPG/WEBP support, mock data, evaluation, docs, security checks~~
-3. Phase 3: tune on real samples and set the "found / new" cutoff (needs the designer's files)
-4. Phase 4: small always-on-top window with paste/open-file input and an **Open folder** button
-5. Later, still to be confirmed: screen-capture hotkey, tray icon, auto-update of the index, single `.exe`
+3. ~~Phase 3: always-on-top window (open / paste / Open folder), single `.exe`, install guide~~
+4. Next: tune on real samples and set the "found / new" cutoff (needs the designer's files)
+5. Later, still to be confirmed: screen-capture hotkey, tray icon, watching folders for changes, auto-start with Windows

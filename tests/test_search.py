@@ -84,3 +84,16 @@ def test_cli_index_and_search(design_root, tmp_path, capsys):
     out = capsys.readouterr().out
     assert str(design_root / "Client B" / "shelf") in out
     assert "shelf.skp" in out
+
+
+def test_removed_root_is_dropped_only_when_asked(design_root, tmp_path):
+    conn = connect(tmp_path / "index.db")
+    index_roots(conn, [design_root])
+    client_a = design_root / "Client A"
+
+    kept = index_roots(conn, [client_a])  # CLI style: other roots stay
+    assert kept.removed == 0
+    pruned = index_roots(conn, [str(client_a).upper()], only_these_roots=True)  # app style
+    assert pruned.removed == 2
+    folders = {r[0] for r in conn.execute("SELECT folder FROM images")}
+    assert folders == {str(client_a / "cabinet")}
