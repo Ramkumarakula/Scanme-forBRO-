@@ -82,6 +82,7 @@ The "found / new" threshold has **not** been chosen, and the UI shows ranked sco
 ## Working rules
 
 - Build one phase at a time, and test each phase (pytest, the eval script, pip-audit, bandit).
+- Commits are by `Ramkumarakula <ramkumarakula66@gmail.com>`. **Don't add `Co-Authored-By: Claude` (or any Claude/AI attribution) to commits or PRs.** The user wants only themselves listed as a contributor.
 - After each phase: update README.md and this file, commit, and **push** (the user asked for a push every phase). Remote: `origin` = https://github.com/Ramkumarakula/Scanme-forBRO-.git (branch `main`).
 - Never invent content, features, tech choices, or numbers (such as thresholds). Ask the user instead.
 - Ask the user for missing assets (sample images, example pairs, folder layouts).
