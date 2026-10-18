@@ -2,6 +2,6 @@
 
 import sys
 
-from designfinder.app import main
+from designfinder.bubble import main
 
 sys.exit(main())

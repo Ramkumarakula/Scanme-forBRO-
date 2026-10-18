@@ -93,7 +93,18 @@ def test_removed_root_is_dropped_only_when_asked(design_root, tmp_path):
 
     kept = index_roots(conn, [client_a])  # CLI style: other roots stay
     assert kept.removed == 0
-    pruned = index_roots(conn, [str(client_a).upper()], only_these_roots=True)  # app style
-    assert pruned.removed == 2
+    upper = str(client_a).upper()  # Windows paths are case-insensitive
+    pruned = index_roots(conn, [upper], keep_only=[upper])  # app style
+    assert (pruned.removed, pruned.added) == (2, 0)
     folders = {r[0] for r in conn.execute("SELECT folder FROM images")}
     assert folders == {str(client_a / "cabinet")}
+
+
+def test_unplugged_folder_keeps_its_images(design_root, tmp_path):
+    conn = connect(tmp_path / "index.db")
+    index_roots(conn, [design_root])
+    unplugged = tmp_path / "USB drive" / "Designs"
+    stats = index_roots(conn, [design_root], keep_only=[design_root, unplugged])
+    assert stats.removed == 0
+    stats = index_roots(conn, [], keep_only=[design_root])  # design_root itself unplugged
+    assert stats.removed == 0

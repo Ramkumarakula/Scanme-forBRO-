@@ -43,11 +43,12 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def index_roots(conn: sqlite3.Connection, roots: list[str | Path],
-                on_error=None, only_these_roots: bool = False) -> IndexStats:
+                on_error=None, keep_only: list[str | Path] | None = None) -> IndexStats:
     """Fingerprint new/changed images under roots; drop rows for deleted files.
 
-    only_these_roots: also drop images outside every given root (the app passes True, so a
-    folder removed from its list disappears from results; the CLI adds roots one at a time).
+    keep_only: also drop images outside all of these folders. The app passes its full folder
+    list (so a folder removed from the list disappears), while scanning only the folders
+    that are present, so an unplugged drive keeps its images. The CLI omits it.
     """
     stats = IndexStats()
     # Windows paths are case-insensitive: compare on normcase, keep the stored spelling.
@@ -60,8 +61,8 @@ def index_roots(conn: sqlite3.Connection, roots: list[str | Path],
         for k in keys:
             del known[k]
 
-    if only_these_roots:
-        prefixes = tuple(_prefix(r) for r in roots)
+    if keep_only is not None:
+        prefixes = tuple(_prefix(r) for r in keep_only)
         drop([k for k in known if not k.startswith(prefixes)])
 
     for root in roots:
