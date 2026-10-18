@@ -43,21 +43,37 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 
 def index_roots(conn: sqlite3.Connection, roots: list[str | Path],
-                on_error=None) -> IndexStats:
-    """Fingerprint new/changed images under roots; drop rows for deleted files."""
+                on_error=None, only_these_roots: bool = False) -> IndexStats:
+    """Fingerprint new/changed images under roots; drop rows for deleted files.
+
+    only_these_roots: also drop images outside every given root (the app passes True, so a
+    folder removed from its list disappears from results; the CLI adds roots one at a time).
+    """
     stats = IndexStats()
-    known = {row[0]: (row[1], row[2])
-             for row in conn.execute("SELECT path, mtime, size FROM images")}
+    # Windows paths are case-insensitive: compare on normcase, keep the stored spelling.
+    known = {os.path.normcase(path): (path, mtime, size)
+             for path, mtime, size in conn.execute("SELECT path, mtime, size FROM images")}
+
+    def drop(keys: list[str]) -> None:
+        conn.executemany("DELETE FROM images WHERE path = ?", [(known[k][0],) for k in keys])
+        stats.removed += len(keys)
+        for k in keys:
+            del known[k]
+
+    if only_these_roots:
+        prefixes = tuple(_prefix(r) for r in roots)
+        drop([k for k in known if not k.startswith(prefixes)])
 
     for root in roots:
         root_abs = os.path.abspath(root)
         seen: set[str] = set()
         for path in iter_images(root_abs):
-            key = str(path)
+            key = os.path.normcase(str(path))
             seen.add(key)
+            old = known.get(key)
             try:
                 st = path.stat()
-                if known.get(key) == (st.st_mtime, st.st_size):
+                if old and old[1:] == (st.st_mtime, st.st_size):
                     stats.unchanged += 1
                     continue
                 fp = fingerprint_file(path)
@@ -66,21 +82,25 @@ def index_roots(conn: sqlite3.Connection, roots: list[str | Path],
                 if on_error:
                     on_error(path, exc)
                 continue
+            if old:
+                conn.execute("DELETE FROM images WHERE path = ?", (old[0],))
             conn.execute(
                 "INSERT OR REPLACE INTO images VALUES (?, ?, ?, ?, ?, ?)",
-                (key, str(path.parent), st.st_mtime, st.st_size,
+                (str(path), str(path.parent), st.st_mtime, st.st_size,
                  fp.edge.tobytes(), fp.tone.tobytes()))
-            if key in known:
+            known[key] = (str(path), st.st_mtime, st.st_size)
+            if old:
                 stats.updated += 1
             else:
                 stats.added += 1
 
-        prefix = root_abs.rstrip("\\/") + os.sep
-        gone = [p for p in known if p.startswith(prefix) and p not in seen]
-        conn.executemany("DELETE FROM images WHERE path = ?", [(p,) for p in gone])
-        stats.removed += len(gone)
-        for p in gone:
-            del known[p]
+        prefix = _prefix(root_abs)
+        drop([k for k in known if k.startswith(prefix) and k not in seen])
 
     conn.commit()
     return stats
+
+
+def _prefix(root: str | Path) -> str:
+    """Case-insensitive (on Windows) path prefix that matches files inside root."""
+    return os.path.normcase(os.path.abspath(root)).rstrip("\\/") + os.sep

@@ -6,10 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "designfinder"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["opencv-python", "numpy"]
+# headless: we never use OpenCV's own windows, and it keeps the .exe smaller
+dependencies = ["opencv-python-headless", "numpy", "pillow"]
 
 [project.optional-dependencies]
-dev = ["pytest", "pip-audit", "bandit"]
+dev = ["pytest", "pip-audit", "bandit", "pyinstaller"]
+
+[project.gui-scripts]
+designfinder-gui = "designfinder.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
