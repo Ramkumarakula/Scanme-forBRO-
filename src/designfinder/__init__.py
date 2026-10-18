@@ -1,4 +1,5 @@
 """Find previously made designs by image similarity."""
 
-IMAGE_EXTENSIONS = {".png"}
+# WhatsApp saves photos as .jpg (stickers as .webp).
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 MASTER_EXTENSIONS = {".skp", ".skb"}

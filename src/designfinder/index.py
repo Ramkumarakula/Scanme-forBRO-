@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from .fingerprint import fingerprint_file
+from .fingerprint import SIGNATURE_VERSION, fingerprint_file
 from .scanner import iter_images
 
 _SCHEMA = """
@@ -30,9 +30,15 @@ class IndexStats:
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
+    """Open the index; if it was built with a different signature format, start it fresh."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version != SIGNATURE_VERSION:
+        conn.execute("DROP TABLE IF EXISTS images")
+        conn.execute(f"PRAGMA user_version = {int(SIGNATURE_VERSION)}")
     conn.execute(_SCHEMA)
+    conn.commit()
     return conn
 
 
