@@ -82,7 +82,7 @@ The "found / new" threshold has **not** been chosen, and the UI shows ranked sco
 ## Working rules
 
 - Build one phase at a time, and test each phase (pytest, the eval script, pip-audit, bandit).
-- After each phase: update README.md and this file, commit, and **push** (the user asked for a push every phase). There is no remote yet, so ask the user for the repo URL before the first push.
+- After each phase: update README.md and this file, commit, and **push** (the user asked for a push every phase). Remote: `origin` = https://github.com/Ramkumarakula/Scanme-forBRO-.git (branch `main`).
 - Never invent content, features, tech choices, or numbers (such as thresholds). Ask the user instead.
 - Ask the user for missing assets (sample images, example pairs, folder layouts).
 - Never commit `.env`, real sample data (`data/`, `samples/`), the index DB, `settings.json`, built exes, or other large raw files. `mock_data/` is small sample data and is committed on purpose.
