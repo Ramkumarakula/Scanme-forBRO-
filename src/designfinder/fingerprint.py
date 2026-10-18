@@ -8,8 +8,9 @@ import numpy as np
 
 _WORK_SIZE = 256
 _DCT_SIZE = 32
-_LOW_FREQ = 8  # keep the 8x8 lowest DCT frequencies, minus the DC term
+_LOW_FREQ = 16  # keep the 16x16 lowest DCT frequencies, minus the DC term
 SIGNATURE_LEN = _LOW_FREQ * _LOW_FREQ - 1
+SIGNATURE_VERSION = 2  # bump whenever fingerprints change; old indexes are rebuilt
 
 
 @dataclass(frozen=True)
@@ -43,21 +44,37 @@ def load_image(path: str | Path) -> np.ndarray:
     return img
 
 
-def _crop_to_content(gray: np.ndarray) -> np.ndarray:
-    """Trim the plain background around the design so margins don't affect the hash."""
-    border = np.concatenate([gray[0], gray[-1], gray[:, 0], gray[:, -1]])
-    background = float(np.median(border))
-    mask = (np.abs(gray.astype(np.int16) - background) > 25).astype(np.uint8)
+def _border_value(gray: np.ndarray) -> float:
+    return float(np.median(np.concatenate([gray[0], gray[-1], gray[:, 0], gray[:, -1]])))
+
+
+def _content_box(gray: np.ndarray) -> np.ndarray:
+    """One pass of trimming the plain background (the border color) around the design."""
+    mask = (np.abs(gray.astype(np.int16) - _border_value(gray)) > 25).astype(np.uint8)
     points = cv2.findNonZero(mask)
     if points is None:
         return gray
     x, y, w, h = cv2.boundingRect(points)
     if w < 8 or h < 8:
         return gray
-    # Re-add a uniform margin: content touching the border makes the hash shift-sensitive.
-    pad = max(w, h) // 10
-    return cv2.copyMakeBorder(gray[y:y + h, x:x + w], pad, pad, pad, pad,
-                              cv2.BORDER_CONSTANT, value=int(background))
+    return gray[y:y + h, x:x + w]
+
+
+def _crop_to_content(gray: np.ndarray) -> np.ndarray:
+    """Trim margins so screenshot borders and scale don't affect the signature.
+
+    Repeats because a screen capture can have two layers of margin: the screen around
+    the image, then the image's own background around the design.
+    """
+    for _ in range(4):
+        cropped = _content_box(gray)
+        if cropped.shape[0] > 0.98 * gray.shape[0] and cropped.shape[1] > 0.98 * gray.shape[1]:
+            break
+        gray = cropped
+    # Re-add a uniform margin: content touching the border makes the signature shift-sensitive.
+    pad = max(gray.shape) // 10
+    return cv2.copyMakeBorder(gray, pad, pad, pad, pad,
+                              cv2.BORDER_CONSTANT, value=int(_border_value(gray)))
 
 
 def _normalize(img: np.ndarray) -> np.ndarray:

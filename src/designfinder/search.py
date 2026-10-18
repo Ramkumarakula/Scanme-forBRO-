@@ -32,8 +32,12 @@ class Index:
         return len(self.paths)
 
     def scores(self, fp: Fingerprint) -> np.ndarray:
-        """Per-image similarity: best of edge-map and tone cosine (abs, so inversions match)."""
-        return np.maximum(self.edge @ fp.edge, np.abs(self.tone @ fp.tone))
+        """Per-image similarity: mean of edge-map and tone cosine (abs, so inversions match).
+
+        Mean rather than max: on boxy furniture drawings either signature alone often
+        scores a different design highly; requiring both separates them better.
+        """
+        return (self.edge @ fp.edge + np.abs(self.tone @ fp.tone)) / 2
 
     def search(self, fp: Fingerprint, top: int = 5) -> list[FolderMatch]:
         if not self.paths:
