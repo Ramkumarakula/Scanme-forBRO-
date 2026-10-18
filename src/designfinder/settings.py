@@ -41,6 +41,8 @@ def _writable(folder: Path) -> bool:
 class Settings:
     roots: list[str] = field(default_factory=list)
     on_top: bool = True
+    bubble_x: int | None = None  # where the floating symbol was last dropped
+    bubble_y: int | None = None
 
     @classmethod
     def load(cls, path: Path) -> "Settings":
@@ -51,8 +53,15 @@ class Settings:
         if not isinstance(raw, dict):
             return cls()
         roots = [r for r in raw.get("roots", []) if isinstance(r, str)]
-        return cls(roots=roots, on_top=bool(raw.get("on_top", True)))
+        return cls(roots=roots, on_top=bool(raw.get("on_top", True)),
+                   bubble_x=_int_or_none(raw.get("bubble_x")),
+                   bubble_y=_int_or_none(raw.get("bubble_y")))
 
     def save(self, path: Path) -> None:
-        path.write_text(json.dumps({"roots": self.roots, "on_top": self.on_top}, indent=2),
-                        encoding="utf-8")
+        data = {"roots": self.roots, "on_top": self.on_top,
+                "bubble_x": self.bubble_x, "bubble_y": self.bubble_y}
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _int_or_none(value) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

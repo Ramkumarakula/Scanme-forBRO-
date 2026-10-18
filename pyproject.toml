@@ -13,7 +13,7 @@ dependencies = ["opencv-python-headless", "numpy", "pillow"]
 dev = ["pytest", "pip-audit", "bandit", "pyinstaller"]
 
 [project.gui-scripts]
-designfinder-gui = "designfinder.app:main"
+designfinder-gui = "designfinder.bubble:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

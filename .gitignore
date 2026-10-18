@@ -10,3 +10,8 @@ samples/
 *.db
 build/
 dist/
+*.spec
+*.log
+settings.json
+index.db
+Thumbs.db
